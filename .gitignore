@@ -1,0 +1,11 @@
+# Geheimnisse und lokale Konfiguration
+.env
+
+# Erzeugte Rechnungen (enthalten Kundendaten)
+data/rechnungen/*
+!data/rechnungen/.gitkeep
+
+# macOS / Editoren
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,89 @@
+{
+  "name": "Gebäudeservice - Einsätze planen (wöchentlich)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                0
+              ],
+              "triggerAtHour": 18
+            }
+          ]
+        }
+      },
+      "id": "27d34adc-d7e1-52bb-8aa0-1bfb30bbf383",
+      "name": "Jeden Sonntag 18 Uhr",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "81fb5f31-1659-517a-b9f9-3728c49299e8",
+      "name": "Manuell testen",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT plane_einsaetze(current_date + 1, current_date + 14) AS neu_angelegte_einsaetze;",
+        "options": {}
+      },
+      "id": "615a22ca-d700-5f4e-8a3c-c1cd01424e27",
+      "name": "Einsätze der nächsten 14 Tage planen",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        260,
+        100
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gs-db",
+          "name": "Gebaeudeservice-DB"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Jeden Sonntag 18 Uhr": {
+      "main": [
+        [
+          {
+            "node": "Einsätze der nächsten 14 Tage planen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manuell testen": {
+      "main": [
+        [
+          {
+            "node": "Einsätze der nächsten 14 Tage planen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

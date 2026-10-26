@@ -1,0 +1,92 @@
+# =====================================================================
+# Gebäudeservice-Backoffice  |  docker compose up -d
+# Dienste: PostgreSQL (Daten), n8n (Automatisierung), Gotenberg (HTML -> PDF),
+#          Caddy (Reverse Proxy mit HTTPS), optional Metabase (Reporting)
+# Konfiguration über die Datei .env (Vorlage: .env.example)
+# =====================================================================
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?bitte in .env setzen}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?bitte in .env setzen}
+      POSTGRES_DB: ${POSTGRES_DB:?bitte in .env setzen}
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro   # Schema, Funktionen, Views, Demo-Daten
+      - ./db/queries:/queries:ro
+      - ./db/tests:/tests:ro
+    ports:
+      - "127.0.0.1:5432:5432"                      # nur vom eigenen Rechner erreichbar
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    # Kein Port nach außen: nur n8n spricht über das interne Netzwerk mit Gotenberg.
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest          # für Reproduzierbarkeit später auf feste Version pinnen
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      gotenberg:
+        condition: service_started
+    environment:
+      N8N_HOST: ${DOMAIN:-localhost}
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: https://${DOMAIN:-localhost}/
+      N8N_PROXY_HOPS: 1                            # n8n steht hinter Caddy
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?bitte in .env setzen}
+      N8N_RESTRICT_FILE_ACCESS_TO: /files           # n8n darf nur hier Dateien schreiben
+      GENERIC_TIMEZONE: ${TZ:-Europe/Berlin}
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./data/rechnungen:/files/rechnungen         # fertige Rechnungs-PDFs
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - n8n
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data                            # Zertifikate
+      - caddy_config:/config
+
+  # Optionales Reporting-Dashboard:  docker compose --profile reporting up -d
+  metabase:
+    image: metabase/metabase:latest
+    profiles: ["reporting"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - metabase_data:/metabase-data
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+
+volumes:
+  pgdata:
+  n8n_data:
+  caddy_data:
+  caddy_config:
+  metabase_data:

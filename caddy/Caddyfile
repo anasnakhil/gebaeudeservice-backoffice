@@ -1,0 +1,11 @@
+# Caddy ist hier der Reverse Proxy: Er nimmt HTTPS-Anfragen entgegen
+# und leitet sie intern an n8n weiter. Zertifikate verwaltet Caddy selbst.
+#
+# Lokal (DOMAIN=localhost): selbstsigniertes Zertifikat, der Browser warnt einmalig.
+# Auf einem Server (DOMAIN=backoffice.deine-domain.de): Caddy holt automatisch
+# ein Let's-Encrypt-Zertifikat, sobald Port 80/443 erreichbar sind.
+
+{$DOMAIN:localhost} {
+	encode gzip
+	reverse_proxy n8n:5678
+}

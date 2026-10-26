@@ -1,0 +1,308 @@
+{
+  "name": "Gebäudeservice - Rechnung erstellen (PDF)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rechnung-erstellen",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "74b9d616-80ac-5f79-923f-19097f63d240",
+      "name": "Anfrage empfangen",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "f2bc0db4-c2fe-5d53-8ff1-971b10ac5cd5"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT erstelle_rechnung($1::integer, $2::date) AS rechnung_id;",
+        "options": {
+          "queryReplacement": "={{ $json.body.auftrag_id }},{{ $json.body.monat }}"
+        }
+      },
+      "id": "1193d921-2cf7-5210-999e-516ab439e746",
+      "name": "Rechnung anlegen",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gs-db",
+          "name": "Gebaeudeservice-DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT r.rechnungsnummer,\n       to_char(r.rechnungsdatum, 'DD.MM.YYYY') AS rechnungsdatum,\n       to_char(r.faellig_am, 'DD.MM.YYYY')     AS faellig_am,\n       to_char(r.leistungsmonat, 'MM/YYYY')    AS leistungsmonat,\n       k.firmenname, k.strasse, k.plz, k.ort,\n       s.netto, s.ust, s.brutto, r.ust_satz,\n       (SELECT json_agg(json_build_object(\n                  'beschreibung', p.beschreibung,\n                  'menge',        p.menge,\n                  'einheit',      p.einheit,\n                  'einzelpreis',  p.einzelpreis_netto,\n                  'summe',        round(p.menge * p.einzelpreis_netto, 2))\n               ORDER BY p.position_id)\n        FROM rechnung_position p\n        WHERE p.rechnung_id = r.rechnung_id) AS positionen\nFROM rechnung r\nJOIN auftrag au ON au.auftrag_id = r.auftrag_id\nJOIN angebot an ON an.angebot_id = au.angebot_id\nJOIN kunde   k  ON k.kunde_id    = an.kunde_id\nJOIN v_rechnung_summe s ON s.rechnung_id = r.rechnung_id\nWHERE r.rechnung_id = $1::integer;",
+        "options": {
+          "queryReplacement": "={{ $json.rechnung_id }}"
+        }
+      },
+      "id": "944afaaf-95b5-5584-b602-31591a662dae",
+      "name": "Rechnungsdaten laden",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gs-db",
+          "name": "Gebaeudeservice-DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Baut aus den Rechnungsdaten eine HTML-Seite. Gotenberg macht daraus das PDF.\n// Absenderdaten: bitte vor dem echten Einsatz ersetzen!\nconst ABSENDER = {\n  name: 'Gebäudeservice (Demo)',\n  adresse: 'Musterstraße 0, 45000 Essen',\n  steuernummer: 'Steuernummer: 000/0000/0000',\n  iban: 'IBAN: DE00 0000 0000 0000 0000 00',\n};\n\nconst r = $input.first().json;\n\nconst esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst eur = (n) => Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';\n\nconst zeilen = r.positionen.map((p, i) =>\n  `<tr><td>${i + 1}</td><td>${esc(p.beschreibung)}</td>` +\n  `<td class=\"r\">${esc(p.menge)} ${esc(p.einheit)}</td>` +\n  `<td class=\"r\">${eur(p.einzelpreis)}</td><td class=\"r\">${eur(p.summe)}</td></tr>`\n).join('');\n\nconst html = `<!DOCTYPE html>\n<html lang=\"de\"><head><meta charset=\"utf-8\"><title>${esc(r.rechnungsnummer)}</title>\n<style>\n  body { font-family: Helvetica, Arial, sans-serif; font-size: 11pt; color: #222; }\n  h1 { font-size: 20pt; margin: 30px 0 4px; }\n  .absender { font-size: 9pt; color: #555; border-bottom: 1px solid #aaa; padding-bottom: 4px; }\n  .meta { margin: 16px 0; }\n  table { width: 100%; border-collapse: collapse; margin-top: 18px; }\n  th { text-align: left; border-bottom: 2px solid #222; padding: 6px 4px; }\n  td { padding: 6px 4px; border-bottom: 1px solid #ddd; }\n  .r { text-align: right; }\n  .summen { width: 45%; margin-left: 55%; }\n  .summen td { border: none; }\n  .gesamt td { border-top: 2px solid #222; font-weight: bold; }\n  .demo { margin-top: 40px; font-size: 9pt; color: #b00020; }\n  .fuss { margin-top: 30px; font-size: 9pt; color: #555; }\n</style></head>\n<body>\n  <div class=\"absender\">${esc(ABSENDER.name)} · ${esc(ABSENDER.adresse)}</div>\n  <div class=\"meta\">\n    ${esc(r.firmenname)}<br>${esc(r.strasse)}<br>${esc(r.plz)} ${esc(r.ort)}\n  </div>\n  <h1>Rechnung ${esc(r.rechnungsnummer)}</h1>\n  <div>Rechnungsdatum: ${esc(r.rechnungsdatum)} · Leistungsmonat: ${esc(r.leistungsmonat)}</div>\n  <table>\n    <tr><th>Pos.</th><th>Beschreibung</th><th class=\"r\">Menge</th><th class=\"r\">Einzelpreis</th><th class=\"r\">Summe</th></tr>\n    ${zeilen}\n  </table>\n  <table class=\"summen\">\n    <tr><td>Netto</td><td class=\"r\">${eur(r.netto)}</td></tr>\n    <tr><td>Umsatzsteuer ${esc(r.ust_satz)} %</td><td class=\"r\">${eur(r.ust)}</td></tr>\n    <tr class=\"gesamt\"><td>Gesamtbetrag</td><td class=\"r\">${eur(r.brutto)}</td></tr>\n  </table>\n  <div class=\"fuss\">\n    Zahlbar bis ${esc(r.faellig_am)} ohne Abzug.<br>\n    ${esc(ABSENDER.steuernummer)} · ${esc(ABSENDER.iban)}\n  </div>\n  <div class=\"demo\">Demo-Rechnung mit fiktiven Daten, keine rechtsgültige Rechnung.</div>\n</body></html>`;\n\nreturn [{ json: { ...r, html } }];\n"
+      },
+      "id": "47106d44-2920-5d0c-928d-2cfb8502d0f2",
+      "name": "HTML erzeugen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "html",
+        "binaryPropertyName": "data",
+        "options": {
+          "fileName": "index.html"
+        }
+      },
+      "id": "32fee121-7522-5df8-99b5-0d10221e7e97",
+      "name": "In HTML-Datei umwandeln",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://gotenberg:3000/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "files",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "paperWidth",
+              "value": "8.27"
+            },
+            {
+              "name": "paperHeight",
+              "value": "11.7"
+            },
+            {
+              "name": "marginTop",
+              "value": "0.5"
+            },
+            {
+              "name": "marginBottom",
+              "value": "0.5"
+            },
+            {
+              "name": "marginLeft",
+              "value": "0.7"
+            },
+            {
+              "name": "marginRight",
+              "value": "0.7"
+            },
+            {
+              "name": "printBackground",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "pdf"
+            }
+          }
+        }
+      },
+      "id": "f42875a5-83f4-5a0b-aaa0-c59f0f093b37",
+      "name": "PDF erzeugen (Gotenberg)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/files/rechnungen/{{ $('HTML erzeugen').item.json.rechnungsnummer }}.pdf",
+        "dataPropertyName": "pdf",
+        "options": {}
+      },
+      "id": "6d3c4e0c-ba47-5da0-8073-821b1fd6ae10",
+      "name": "PDF speichern",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE rechnung SET pdf_pfad = $2 WHERE rechnungsnummer = $1 RETURNING rechnungsnummer, pdf_pfad;",
+        "options": {
+          "queryReplacement": "={{ $('HTML erzeugen').item.json.rechnungsnummer }},rechnungen/{{ $('HTML erzeugen').item.json.rechnungsnummer }}.pdf"
+        }
+      },
+      "id": "8e5ae2bc-4247-5e45-9b17-4c7b6c1ae7b1",
+      "name": "Pfad in Datenbank speichern",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gs-db",
+          "name": "Gebaeudeservice-DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {}
+      },
+      "id": "3b742854-1670-57b2-99c1-a61903a97b79",
+      "name": "Antwort senden",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1920,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Anfrage empfangen": {
+      "main": [
+        [
+          {
+            "node": "Rechnung anlegen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rechnung anlegen": {
+      "main": [
+        [
+          {
+            "node": "Rechnungsdaten laden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rechnungsdaten laden": {
+      "main": [
+        [
+          {
+            "node": "HTML erzeugen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML erzeugen": {
+      "main": [
+        [
+          {
+            "node": "In HTML-Datei umwandeln",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "In HTML-Datei umwandeln": {
+      "main": [
+        [
+          {
+            "node": "PDF erzeugen (Gotenberg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF erzeugen (Gotenberg)": {
+      "main": [
+        [
+          {
+            "node": "PDF speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF speichern": {
+      "main": [
+        [
+          {
+            "node": "Pfad in Datenbank speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pfad in Datenbank speichern": {
+      "main": [
+        [
+          {
+            "node": "Antwort senden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

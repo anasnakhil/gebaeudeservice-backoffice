@@ -1,0 +1,88 @@
+{
+  "name": "Gebäudeservice - Angebot kalkulieren",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "angebot-kalkulieren",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "74b9d616-80ac-5f79-923f-19097f63d240",
+      "name": "Anfrage empfangen",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "138e6694-3c42-5483-9f3d-82f9c8aa1fef"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM berechne_angebot($1::numeric, $2::integer, $3::smallint);",
+        "options": {
+          "queryReplacement": "={{ $json.body.flaeche_qm }},{{ $json.body.leistung_id }},{{ $json.body.einsaetze_pro_woche }}"
+        }
+      },
+      "id": "07486fa1-de05-5361-b273-3900fd8802c8",
+      "name": "Angebot berechnen",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gs-db",
+          "name": "Gebaeudeservice-DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {}
+      },
+      "id": "b3e6629d-bd6f-5b4b-80d3-137dabaeea9a",
+      "name": "Angebot zurückgeben",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Anfrage empfangen": {
+      "main": [
+        [
+          {
+            "node": "Angebot berechnen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Angebot berechnen": {
+      "main": [
+        [
+          {
+            "node": "Angebot zurückgeben",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

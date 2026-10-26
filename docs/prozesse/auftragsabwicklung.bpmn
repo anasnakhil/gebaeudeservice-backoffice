@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_Gebaeudeservice"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:process id="Prozess_Auftragsabwicklung" name="Auftragsabwicklung Gebäudeservice" isExecutable="false">
+
+    <bpmn:startEvent id="Start_Anfrage" name="Anfrage eingegangen">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_Besichtigung" name="Objekt besichtigen und Anforderungen erfassen">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:serviceTask id="Task_Kalkulation" name="Angebot kalkulieren (n8n: 01_angebot_kalkulieren)">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:task id="Task_AngebotSenden" name="Angebot versenden">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_Angenommen" name="Angebot angenommen?">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_nein</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ja</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="End_Abgelehnt" name="Anfrage abgeschlossen (abgelehnt)">
+      <bpmn:incoming>Flow_nein</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_AuftragAnlegen" name="Auftrag anlegen">
+      <bpmn:incoming>Flow_ja</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:serviceTask id="Task_Einsatzplanung" name="Einsätze planen (n8n: 02_einsaetze_planen)">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:task id="Task_Durchfuehrung" name="Reinigung durchführen und Zeiten erfassen">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_Qualitaet" name="Qualität prüfen">
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+      <bpmn:incoming>Flow_nachbessern_zurueck</bpmn:incoming>
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_Maengel" name="Mängel festgestellt?">
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+      <bpmn:outgoing>Flow_maengel_ja</bpmn:outgoing>
+      <bpmn:outgoing>Flow_maengel_nein</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_Nachbesserung" name="Nachbessern">
+      <bpmn:incoming>Flow_maengel_ja</bpmn:incoming>
+      <bpmn:outgoing>Flow_nachbessern_zurueck</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:serviceTask id="Task_Rechnung" name="Monatsrechnung als PDF erstellen (n8n: 03_rechnung_erstellen_pdf)">
+      <bpmn:incoming>Flow_maengel_nein</bpmn:incoming>
+      <bpmn:outgoing>Flow_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:task id="Task_Versand" name="Rechnung versenden">
+      <bpmn:incoming>Flow_9</bpmn:incoming>
+      <bpmn:outgoing>Flow_10</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_Zahlung" name="Zahlungseingang prüfen und buchen">
+      <bpmn:incoming>Flow_10</bpmn:incoming>
+      <bpmn:outgoing>Flow_11</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="End_Abgeschlossen" name="Monat abgerechnet">
+      <bpmn:incoming>Flow_11</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1"  sourceRef="Start_Anfrage"        targetRef="Task_Besichtigung" />
+    <bpmn:sequenceFlow id="Flow_2"  sourceRef="Task_Besichtigung"    targetRef="Task_Kalkulation" />
+    <bpmn:sequenceFlow id="Flow_3"  sourceRef="Task_Kalkulation"     targetRef="Task_AngebotSenden" />
+    <bpmn:sequenceFlow id="Flow_4"  sourceRef="Task_AngebotSenden"   targetRef="Gateway_Angenommen" />
+    <bpmn:sequenceFlow id="Flow_nein" name="nein" sourceRef="Gateway_Angenommen" targetRef="End_Abgelehnt" />
+    <bpmn:sequenceFlow id="Flow_ja"   name="ja"   sourceRef="Gateway_Angenommen" targetRef="Task_AuftragAnlegen" />
+    <bpmn:sequenceFlow id="Flow_5"  sourceRef="Task_AuftragAnlegen"  targetRef="Task_Einsatzplanung" />
+    <bpmn:sequenceFlow id="Flow_6"  sourceRef="Task_Einsatzplanung"  targetRef="Task_Durchfuehrung" />
+    <bpmn:sequenceFlow id="Flow_7"  sourceRef="Task_Durchfuehrung"   targetRef="Task_Qualitaet" />
+    <bpmn:sequenceFlow id="Flow_8"  sourceRef="Task_Qualitaet"       targetRef="Gateway_Maengel" />
+    <bpmn:sequenceFlow id="Flow_maengel_ja"   name="ja"   sourceRef="Gateway_Maengel" targetRef="Task_Nachbesserung" />
+    <bpmn:sequenceFlow id="Flow_maengel_nein" name="nein" sourceRef="Gateway_Maengel" targetRef="Task_Rechnung" />
+    <bpmn:sequenceFlow id="Flow_nachbessern_zurueck" sourceRef="Task_Nachbesserung" targetRef="Task_Qualitaet" />
+    <bpmn:sequenceFlow id="Flow_9"  sourceRef="Task_Rechnung"        targetRef="Task_Versand" />
+    <bpmn:sequenceFlow id="Flow_10" sourceRef="Task_Versand"         targetRef="Task_Zahlung" />
+    <bpmn:sequenceFlow id="Flow_11" sourceRef="Task_Zahlung"         targetRef="End_Abgeschlossen" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="Diagramm_1">
+    <bpmndi:BPMNPlane id="Plane_1" bpmnElement="Prozess_Auftragsabwicklung">
+
+      <bpmndi:BPMNShape id="S_Start" bpmnElement="Start_Anfrage">
+        <dc:Bounds x="152" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="130" y="225" width="80" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Besichtigung" bpmnElement="Task_Besichtigung">
+        <dc:Bounds x="240" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Kalkulation" bpmnElement="Task_Kalkulation">
+        <dc:Bounds x="390" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_AngebotSenden" bpmnElement="Task_AngebotSenden">
+        <dc:Bounds x="540" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_GwAngenommen" bpmnElement="Gateway_Angenommen" isMarkerVisible="true">
+        <dc:Bounds x="695" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="676" y="145" width="88" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_EndAbgelehnt" bpmnElement="End_Abgelehnt">
+        <dc:Bounds x="702" y="312" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="680" y="355" width="80" height="40" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_AuftragAnlegen" bpmnElement="Task_AuftragAnlegen">
+        <dc:Bounds x="800" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Einsatzplanung" bpmnElement="Task_Einsatzplanung">
+        <dc:Bounds x="950" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Durchfuehrung" bpmnElement="Task_Durchfuehrung">
+        <dc:Bounds x="1100" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Qualitaet" bpmnElement="Task_Qualitaet">
+        <dc:Bounds x="1250" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_GwMaengel" bpmnElement="Gateway_Maengel" isMarkerVisible="true">
+        <dc:Bounds x="1375" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1360" y="145" width="80" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Nachbesserung" bpmnElement="Task_Nachbesserung">
+        <dc:Bounds x="1250" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Rechnung" bpmnElement="Task_Rechnung">
+        <dc:Bounds x="1480" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Versand" bpmnElement="Task_Versand">
+        <dc:Bounds x="1630" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Zahlung" bpmnElement="Task_Zahlung">
+        <dc:Bounds x="1780" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_EndAbgeschlossen" bpmnElement="End_Abgeschlossen">
+        <dc:Bounds x="1912" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1890" y="225" width="80" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="E_1" bpmnElement="Flow_1">
+        <di:waypoint x="188" y="200" /><di:waypoint x="240" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_2" bpmnElement="Flow_2">
+        <di:waypoint x="340" y="200" /><di:waypoint x="390" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_3" bpmnElement="Flow_3">
+        <di:waypoint x="490" y="200" /><di:waypoint x="540" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_4" bpmnElement="Flow_4">
+        <di:waypoint x="640" y="200" /><di:waypoint x="695" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_nein" bpmnElement="Flow_nein">
+        <di:waypoint x="720" y="225" /><di:waypoint x="720" y="312" />
+        <bpmndi:BPMNLabel><dc:Bounds x="726" y="260" width="22" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_ja" bpmnElement="Flow_ja">
+        <di:waypoint x="745" y="200" /><di:waypoint x="800" y="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="767" y="182" width="12" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_5" bpmnElement="Flow_5">
+        <di:waypoint x="900" y="200" /><di:waypoint x="950" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_6" bpmnElement="Flow_6">
+        <di:waypoint x="1050" y="200" /><di:waypoint x="1100" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_7" bpmnElement="Flow_7">
+        <di:waypoint x="1200" y="200" /><di:waypoint x="1250" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_8" bpmnElement="Flow_8">
+        <di:waypoint x="1350" y="200" /><di:waypoint x="1375" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_maengel_ja" bpmnElement="Flow_maengel_ja">
+        <di:waypoint x="1400" y="225" /><di:waypoint x="1400" y="340" /><di:waypoint x="1350" y="340" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1406" y="270" width="12" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_maengel_nein" bpmnElement="Flow_maengel_nein">
+        <di:waypoint x="1425" y="200" /><di:waypoint x="1480" y="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1445" y="182" width="22" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_nachbessern" bpmnElement="Flow_nachbessern_zurueck">
+        <di:waypoint x="1300" y="300" /><di:waypoint x="1300" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_9" bpmnElement="Flow_9">
+        <di:waypoint x="1580" y="200" /><di:waypoint x="1630" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_10" bpmnElement="Flow_10">
+        <di:waypoint x="1730" y="200" /><di:waypoint x="1780" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_11" bpmnElement="Flow_11">
+        <di:waypoint x="1880" y="200" /><di:waypoint x="1912" y="200" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
